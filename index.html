@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Alarm Clock</title>
+<meta name="theme-color" content="#0F1115">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F1115;
+    --panel: #171A21;
+    --panel-border: rgba(255,255,255,0.08);
+    --ink: #F2F3F5;
+    --dim: #8A8F98;
+    --accent: #FF6B4A;
+    --accent-dim: rgba(255,107,74,0.15);
+    --ok: #4ADE80;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom)) 16px;
+    padding-top: calc(24px + env(safe-area-inset-top));
+    overscroll-behavior-y: contain;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, .alarm-label, .alarm-days { -webkit-user-select: text; user-select: text; }
+  .app {
+    width: 100%;
+    max-width: 420px;
+  }
+  .clock-panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 36px 28px 30px;
+    text-align: center;
+  }
+  .date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .time {
+    font-size: clamp(48px, 13vw, 64px);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .time .secs {
+    font-size: 0.45em;
+    color: var(--dim);
+    font-weight: 500;
+    margin-left: 6px;
+  }
+
+  .add-alarm {
+    margin-top: 24px;
+    display: flex;
+    gap: 10px;
+  }
+  .add-alarm input[type="time"] {
+    flex: 1;
+    min-width: 0;
+    background: #0F1115;
+    border: 1px solid var(--panel-border);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    color-scheme: dark;
+    min-height: 48px;
+  }
+  .add-alarm input[type="time"]:focus { outline: none; border-color: var(--accent); }
+  .add-alarm button {
+    background: var(--accent);
+    color: #1a0d08;
+    border: none;
+    border-radius: 8px;
+    padding: 0 18px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity .2s;
+    touch-action: manipulation;
+    min-height: 48px;
+    flex-shrink: 0;
+  }
+  .add-alarm button:hover { opacity: 0.85; }
+  .add-alarm button:active { transform: translateY(1px); opacity: 0.85; }
+
+  .label-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .label-row input[type="text"] {
+    flex: 1;
+    background: #0F1115;
+    border: 1px solid var(--panel-border);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    min-height: 46px;
+  }
+  .label-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .label-row input[type="text"]::placeholder { color: var(--dim); }
+
+  .alarms {
+    margin-top: 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .alarms-empty {
+    text-align: center;
+    color: var(--dim);
+    font-size: 13.5px;
+    padding: 30px 10px;
+    border: 1.5px dashed var(--panel-border);
+    border-radius: var(--radius);
+  }
+  .alarm-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color .2s, opacity .2s;
+  }
+  .alarm-card.disabled { opacity: 0.45; }
+  .alarm-card.ringing { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .alarm-info { flex: 1; min-width: 0; }
+  .alarm-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .alarm-label {
+    font-size: 12.5px;
+    color: var(--dim);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .alarm-days {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+
+  .switch {
+    position: relative;
+    width: 48px;
+    height: 28px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .track {
+    position: absolute; inset: 0;
+    background: #2A2E37;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .switch .track::before {
+    content: "";
+    position: absolute;
+    width: 22px; height: 22px;
+    left: 3px; top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .2s;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::before { transform: translateX(20px); }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: color .2s, background .2s;
+    touch-action: manipulation;
+  }
+  .delete-btn:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+  .delete-btn:active { background: rgba(255,255,255,0.08); }
+  .delete-btn svg { width: 17px; height: 17px; }
+
+  .days-picker {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .day-toggle {
+    background: #0F1115;
+    border: 1px solid var(--panel-border);
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    padding: 10px 13px;
+    min-height: 40px;
+    touch-action: manipulation;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .day-toggle.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+  .notif-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 16px;
+    padding: 13px 14px;
+    min-height: 46px;
+    background: #0F1115;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--dim);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color .2s, color .2s;
+  }
+  .notif-banner:hover { border-color: var(--accent); color: var(--ink); }
+  .notif-banner svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--accent); }
+  .notif-banner.is-on { cursor: default; color: var(--ok); }
+  .notif-banner.is-on:hover { border-color: var(--panel-border); color: var(--ok); }
+  .notif-banner.is-on svg { color: var(--ok); }
+  .notif-banner.is-off { cursor: default; }
+  .notif-banner.is-off:hover { border-color: var(--panel-border); color: var(--dim); }
+  #install-banner { margin-top: 10px; }
+
+  /* Ringing overlay */
+  .ring-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,17,21,0.96);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  .ring-overlay.show { display: flex; }
+  .ring-card { text-align: center; width: 100%; max-width: 360px; }
+  .ring-pulse {
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 22px;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .ring-pulse svg { width: 36px; height: 36px; color: var(--accent); }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+  .ring-time { font-size: 46px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ring-label { color: var(--dim); margin-top: 8px; font-size: 16px; }
+  .ring-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 34px; }
+  .ring-actions button {
+    width: 100%;
+    padding: 17px 20px;
+    min-height: 54px;
+    border-radius: 12px;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .btn-snooze { background: #2A2E37; color: var(--ink); order: 2; }
+  .btn-snooze:hover { background: #333844; }
+  .btn-snooze:active { background: #3a3f4c; }
+  .btn-dismiss { background: var(--accent); color: #1a0d08; order: 1; }
+  .btn-dismiss:hover { opacity: 0.9; }
+  .btn-dismiss:active { opacity: 0.8; }
+</style>
+
+</head>
+<body>
+
+<div class="app">
+  <div class="clock-panel">
+    <div class="date" id="date-display">—</div>
+    <div class="time" id="time-display">00:00<span class="secs" id="secs-display">00</span></div>
+
+    <div class="add-alarm">
+      <input type="time" id="new-alarm-time">
+      <button id="add-alarm-btn">Add Alarm</button>
+    </div>
+    <div class="label-row">
+      <input type="text" id="new-alarm-label" placeholder="Label (optional, e.g. Wake up)" maxlength="40">
+    </div>
+    <div class="days-picker" id="new-alarm-days"></div>
+
+    <button type="button" class="notif-banner" id="notif-banner" hidden></button>
+    <button type="button" class="notif-banner" id="install-banner" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      Install this as an app for more reliable background alarms
+    </button>
+  </div>
+
+  <div class="alarms" id="alarms-list"></div>
+</div>
+
+<div class="ring-overlay" id="ring-overlay">
+  <div class="ring-card">
+    <div class="ring-pulse">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+    </div>
+    <div class="ring-time" id="ring-time">00:00</div>
+    <div class="ring-label" id="ring-label">Alarm</div>
+    <div class="ring-actions">
+      <button class="btn-snooze" id="snooze-btn">Snooze 5 min</button>
+      <button class="btn-dismiss" id="dismiss-btn">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const STORAGE_KEY = "simple-alarm-clock-alarms";
+  const LAST_TICK_KEY = "simple-alarm-clock-last-tick";
+
+  let alarms = loadAlarms();
+  let selectedDays = new Set();
+  let ringingAlarmId = null;
+  let audioCtx = null;
+  let beepInterval = null;
+  let firedThisMinute = new Set();
+  let swRegistration = null;
+  let deferredInstallPrompt = null;
+
+  // ---------- storage ----------
+  function loadAlarms() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch(e) { return []; }
+  }
+  function saveAlarms() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(alarms)); } catch(e) {}
+  }
+
+  // ---------- live clock ----------
+  const timeDisplay = document.getElementById("time-display");
+  const secsDisplay = document.getElementById("secs-display");
+  const dateDisplay = document.getElementById("date-display");
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+
+  function tick() {
+    const now = new Date();
+    const h = pad(now.getHours());
+    const m = pad(now.getMinutes());
+    const s = pad(now.getSeconds());
+    timeDisplay.firstChild.textContent = `${h}:${m}`;
+    secsDisplay.textContent = s;
+    dateDisplay.textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+    if (s === "00") {
+      const key = `${now.getHours()}:${now.getMinutes()}`;
+      if (!firedThisMinute.has(key)) {
+        firedThisMinute.add(key);
+        checkAlarms(now);
+      }
+    } else {
+      firedThisMinute.clear();
+    }
+
+    try { localStorage.setItem(LAST_TICK_KEY, String(now.getTime())); } catch(e) {}
+  }
+  setInterval(tick, 1000);
+  tick();
+
+  // ---------- catch up on alarms missed while the tab was hidden/suspended ----------
+  function catchUpMissedAlarms() {
+    let lastTick;
+    try { lastTick = parseInt(localStorage.getItem(LAST_TICK_KEY), 10); } catch(e) { lastTick = NaN; }
+    const now = Date.now();
+    if (!lastTick || isNaN(lastTick) || now - lastTick < 65000) return; // normal gap, nothing missed
+
+    const cappedFrom = Math.max(lastTick, now - 24 * 60 * 60 * 1000); // don't scan more than 24h back
+    let cursor = new Date(cappedFrom);
+    cursor.setSeconds(0, 0);
+    cursor = new Date(cursor.getTime() + 60000); // start one minute after last known tick
+
+    while (cursor.getTime() <= now) {
+      checkAlarms(cursor);
+      cursor = new Date(cursor.getTime() + 60000);
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") catchUpMissedAlarms();
+  });
+  window.addEventListener("focus", catchUpMissedAlarms);
+  catchUpMissedAlarms();
+
+  // ---------- days picker (for new alarm) ----------
+  const daysPickerEl = document.getElementById("new-alarm-days");
+  daysPickerEl.innerHTML = DAY_NAMES.map((d, i) =>
+    `<button type="button" class="day-toggle" data-day="${i}">${d}</button>`
+  ).join("");
+  daysPickerEl.querySelectorAll(".day-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const day = parseInt(btn.dataset.day, 10);
+      if (selectedDays.has(day)) { selectedDays.delete(day); btn.classList.remove("active"); }
+      else { selectedDays.add(day); btn.classList.add("active"); }
+    });
+  });
+
+  // ---------- add alarm ----------
+  const newTimeInput = document.getElementById("new-alarm-time");
+  const newLabelInput = document.getElementById("new-alarm-label");
+
+  document.getElementById("add-alarm-btn").addEventListener("click", () => {
+    if (!newTimeInput.value) { newTimeInput.focus(); return; }
+    const [hh, mm] = newTimeInput.value.split(":").map(Number);
+
+    alarms.push({
+      id: "al_" + Date.now(),
+      hour: hh,
+      minute: mm,
+      label: newLabelInput.value.trim(),
+      days: Array.from(selectedDays).sort(),
+      enabled: true
+    });
+    alarms.sort((a,b) => (a.hour*60+a.minute) - (b.hour*60+b.minute));
+    saveAlarms();
+    renderAlarms();
+
+    newTimeInput.value = "";
+    newLabelInput.value = "";
+    selectedDays.clear();
+    daysPickerEl.querySelectorAll(".day-toggle").forEach(b => b.classList.remove("active"));
+  });
+
+  // ---------- render alarm list ----------
+  const alarmsList = document.getElementById("alarms-list");
+
+  function fmt12(hour, minute) {
+    const period = hour >= 12 ? "PM" : "AM";
+    let h = hour % 12; if (h === 0) h = 12;
+    return `${h}:${pad(minute)} <span style="font-size:0.5em;color:var(--dim);">${period}</span>`;
+  }
+
+  function renderAlarms() {
+    if (!alarms.length) {
+      alarmsList.innerHTML = `<div class="alarms-empty">No alarms yet — set one above.</div>`;
+      return;
+    }
+    alarmsList.innerHTML = alarms.map(a => `
+      <div class="alarm-card ${a.enabled ? '' : 'disabled'} ${ringingAlarmId === a.id ? 'ringing' : ''}" data-id="${a.id}">
+        <div class="alarm-info">
+          <div class="alarm-time">${fmt12(a.hour, a.minute)}</div>
+          ${a.label ? `<div class="alarm-label">${escapeHtml(a.label)}</div>` : ""}
+          ${a.days.length ? `<div class="alarm-days">${a.days.map(d => DAY_NAMES[d]).join(" · ")}</div>` : `<div class="alarm-days">Once</div>`}
+        </div>
+        <label class="switch">
+          <input type="checkbox" ${a.enabled ? "checked" : ""} data-toggle="${a.id}">
+          <span class="track"></span>
+        </label>
+        <button class="delete-btn" data-delete="${a.id}" aria-label="Delete alarm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+        </button>
+      </div>
+    `).join("");
+
+    alarmsList.querySelectorAll("[data-toggle]").forEach(input => {
+      input.addEventListener("change", () => {
+        const alarm = alarms.find(a => a.id === input.dataset.toggle);
+        if (alarm) { alarm.enabled = input.checked; saveAlarms(); renderAlarms(); }
+      });
+    });
+    alarmsList.querySelectorAll("[data-delete]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        alarms = alarms.filter(a => a.id !== btn.dataset.delete);
+        saveAlarms();
+        renderAlarms();
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ---------- alarm checking ----------
+  function checkAlarms(now) {
+    const day = now.getDay();
+    alarms.forEach(a => {
+      if (!a.enabled) return;
+      if (a.hour !== now.getHours() || a.minute !== now.getMinutes()) return;
+      if (a.days.length && !a.days.includes(day)) return;
+      ringAlarm(a);
+    });
+  }
+
+  function ringAlarm(alarm) {
+    ringingAlarmId = alarm.id;
+    document.getElementById("ring-time").innerHTML = fmt12(alarm.hour, alarm.minute);
+    document.getElementById("ring-label").textContent = alarm.label || "Alarm";
+    document.getElementById("ring-overlay").classList.add("show");
+    renderAlarms();
+    startBeeping();
+    sendNotification(alarm);
+
+    // one-off alarms disable themselves after ringing
+    if (!alarm.days.length) {
+      alarm.enabled = false;
+    }
+    saveAlarms();
+  }
+
+  // ---------- browser notifications ----------
+  const notifBanner = document.getElementById("notif-banner");
+  let activeNotification = null;
+
+  function notifSupported() {
+    return "Notification" in window;
+  }
+
+  function renderNotifBanner() {
+    if (!notifSupported()) { notifBanner.hidden = true; return; }
+    notifBanner.hidden = false;
+    const perm = Notification.permission;
+
+    if (perm === "granted") {
+      notifBanner.className = "notif-banner is-on";
+      notifBanner.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6L9 17l-5-5"/></svg> Notifications on — you'll be alerted here even if this tab isn't focused.`;
+    } else if (perm === "denied") {
+      notifBanner.className = "notif-banner is-off";
+      notifBanner.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg> Notifications blocked. Enable them for this site in your browser settings to get alerts.`;
+    } else {
+      notifBanner.className = "notif-banner";
+      notifBanner.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg> Enable notifications for when the alarm goes off`;
+    }
+  }
+
+  notifBanner.addEventListener("click", () => {
+    if (!notifSupported() || Notification.permission !== "default") return;
+    Notification.requestPermission().then(renderNotifBanner);
+  });
+
+  function sendNotification(alarm) {
+    if (!notifSupported() || Notification.permission !== "granted") return;
+    const body = `${fmt12(alarm.hour, alarm.minute).replace(/<[^>]+>/g, "")} — tap to open`;
+
+    // Prefer the service worker: it can show actionable Snooze/Dismiss
+    // buttons and keeps working while this tab is hidden or backgrounded.
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "SHOW_ALARM_NOTIFICATION",
+        alarmId: alarm.id,
+        title: alarm.label || "Alarm",
+        body
+      });
+      return;
+    }
+
+    try {
+      if (activeNotification) activeNotification.close();
+      activeNotification = new Notification(alarm.label || "Alarm", {
+        body, tag: "alarm-" + alarm.id, requireInteraction: true
+      });
+      activeNotification.addEventListener("click", () => {
+        window.focus();
+        activeNotification.close();
+      });
+    } catch(e) { /* notification blocked or unsupported in this context */ }
+  }
+
+  function closeActiveNotification(alarmId) {
+    if (activeNotification) { activeNotification.close(); activeNotification = null; }
+    if (swRegistration && swRegistration.getNotifications) {
+      swRegistration.getNotifications({ tag: alarmId ? "alarm-" + alarmId : undefined }).then(list => {
+        list.forEach(n => n.close());
+      }).catch(() => {});
+    }
+  }
+
+  renderNotifBanner();
+
+  // ---------- service worker registration (enables install + background-capable notifications) ----------
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").then(reg => {
+      swRegistration = reg;
+    }).catch(() => { /* likely running from file:// or an unsupported context */ });
+
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      const data = event.data || {};
+      if (data.type !== "NOTIFICATION_ACTION") return;
+      if (data.action === "snooze") handleSnooze(data.alarmId);
+      else handleDismiss(data.alarmId);
+    });
+  }
+
+  // handle the case where the OS opened a brand-new tab from a notification tap
+  (function handleLaunchParams() {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    const alarmId = params.get("alarmId");
+    if (action === "snooze") handleSnooze(alarmId);
+    else if (action === "dismiss") handleDismiss(alarmId);
+    if (action) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  })();
+
+  // ---------- install prompt ----------
+  const installBanner = document.getElementById("install-banner");
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installBanner.hidden = false;
+  });
+  installBanner.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    installBanner.hidden = true;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+  });
+  window.addEventListener("appinstalled", () => { installBanner.hidden = true; });
+
+  function startBeeping() {
+    stopBeeping();
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const beep = () => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.35);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      };
+      beep();
+      beepInterval = setInterval(beep, 700);
+    } catch(e) { /* audio unsupported, visual overlay still shows */ }
+  }
+  function stopBeeping() {
+    if (beepInterval) { clearInterval(beepInterval); beepInterval = null; }
+  }
+
+  function handleDismiss(alarmId) {
+    stopBeeping();
+    closeActiveNotification(alarmId);
+    document.getElementById("ring-overlay").classList.remove("show");
+    ringingAlarmId = null;
+    renderAlarms();
+  }
+
+  function handleSnooze(alarmId) {
+    stopBeeping();
+    closeActiveNotification(alarmId);
+    document.getElementById("ring-overlay").classList.remove("show");
+    const id = alarmId || ringingAlarmId;
+    const alarm = alarms.find(a => a.id === id);
+    ringingAlarmId = null;
+    if (alarm) {
+      const snoozeTime = new Date(Date.now() + 5 * 60 * 1000);
+      alarms.push({
+        id: "al_" + Date.now(),
+        hour: snoozeTime.getHours(),
+        minute: snoozeTime.getMinutes(),
+        label: (alarm.label || "Alarm") + " (snoozed)",
+        days: [],
+        enabled: true
+      });
+      alarms.sort((a,b) => (a.hour*60+a.minute) - (b.hour*60+b.minute));
+      saveAlarms();
+    }
+    renderAlarms();
+  }
+
+  document.getElementById("dismiss-btn").addEventListener("click", () => handleDismiss(ringingAlarmId));
+  document.getElementById("snooze-btn").addEventListener("click", () => handleSnooze(ringingAlarmId));
+
+  // ---------- init ----------
+  renderAlarms();
+})();
+</script>
+</body>
+</html>
